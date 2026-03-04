@@ -25,6 +25,9 @@ export class Order {
   public orderId: any = signal(null);
   public calculationResult: any = signal(null);
 
+  public isLoading = signal(false);
+
+
   constructor(private formBuilder: FormBuilder, private deliveryApi: DeliveryApi) {
     this.routeForm = this.formBuilder.group({
       from: ['', Validators.required],
@@ -64,63 +67,134 @@ export class Order {
   }
 
   public calculate() {
-    this.calculationResult.set(null);
+  this.calculationResult.set(null);
+  this.isLoading.set(true); // Включаем лоадер
 
-    if (!this.map || this.routeForm.invalid) {
-      return;
-    }
-
-    const { from, to, size, speed } = this.routeForm.getRawValue();
-
-    if (this.mapRoute) {
-      this.map.geoObjects.remove(this.mapRoute);
-      this.mapRoute = null;
-    }
-
-    this.mapRoute = new ymaps.multiRouter.MultiRoute(
-      { referencePoints: [from, to] },
-      { boundsAutoApply: false }
-    );
-    this.map.geoObjects.add(this.mapRoute);
-
-    this.mapRoute.model.events.add('requestsuccess', () => {
-      try {
-        const activeRoute = this.mapRoute.getActiveRoute();
-        if (!activeRoute) {
-          return this.failedCalculation();
-        }
-
-        const km = activeRoute.properties.get('distance').value / 1000;
-        const sizeValue = size ?? '';
-        const sizeConfig = this.sizes.find((item) => item.value === sizeValue);
-        if (!sizeConfig) {
-          return this.failedCalculation();
-        }
-        let total = Math.max(sizeConfig.min, Math.ceil(km * sizeConfig.rate));
-        let duration = Math.min(30, 1 + Math.ceil(km / 80));
-
-        if (speed === 'fast') {
-          total = Math.ceil(total * 1.15);
-          duration = Math.ceil(duration - (duration * 0.30));
-        }
-
-        this.calculationResult.set({
-          from,
-          to,
-          size,
-          distance: km.toFixed(1),
-          duration,
-          rate: sizeConfig.rate,
-          total,
-          speed
-        });
-      } catch (err) {
-        this.failedCalculation();
-      }
-    });
-
-    this.mapRoute.model.events.add('requestfail', () => this.failedCalculation());
+  if (!this.map || this.routeForm.invalid) {
+    this.isLoading.set(false); // Отключаем лоадер при ошибке
+    return;
   }
+
+  const { from, to, size, speed } = this.routeForm.getRawValue();
+
+  if (this.mapRoute) {
+    this.map.geoObjects.remove(this.mapRoute);
+    this.mapRoute = null;
+  }
+
+  this.mapRoute = new ymaps.multiRouter.MultiRoute(
+    { referencePoints: [from, to] },
+    { boundsAutoApply: false }
+  );
+  this.map.geoObjects.add(this.mapRoute);
+
+  this.mapRoute.model.events.add('requestsuccess', () => {
+    try {
+      const activeRoute = this.mapRoute.getActiveRoute();
+      if (!activeRoute) {
+        this.failedCalculation();
+        return;
+      }
+
+      const km = activeRoute.properties.get('distance').value / 1000;
+      const sizeValue = size ?? '';
+      const sizeConfig = this.sizes.find((item) => item.value === sizeValue);
+      if (!sizeConfig) {
+        this.failedCalculation();
+        return;
+      }
+      let total = Math.max(sizeConfig.min, Math.ceil(km * sizeConfig.rate));
+      let duration = Math.min(30, 1 + Math.ceil(km / 80));
+
+      if (speed === 'fast') {
+        total = Math.ceil(total * 1.15);
+        duration = Math.ceil(duration - (duration * 0.30));
+      }
+
+      this.calculationResult.set({
+        from,
+        to,
+        size,
+        distance: km.toFixed(1),
+        duration,
+        rate: sizeConfig.rate,
+        total,
+        speed
+      });
+    } catch (err) {
+      this.failedCalculation();
+    } finally {
+      this.isLoading.set(false); // Отключаем лоадер после расчёта
+    }
+  });
+
+  this.mapRoute.model.events.add('requestfail', () => {
+    this.failedCalculation();
+    this.isLoading.set(false); // Отключаем лоадер при ошибке
+  });
+}
+
+
+  // public calculate() {
+  //   this.calculationResult.set(null);
+
+  //   if (!this.map || this.routeForm.invalid) {
+  //     return;
+  //   }
+
+  //   const { from, to, size, speed } = this.routeForm.getRawValue();
+
+  //   if (this.mapRoute) {
+  //     this.map.geoObjects.remove(this.mapRoute);
+  //     this.mapRoute = null;
+  //   }
+
+  //   this.mapRoute = new ymaps.multiRouter.MultiRoute(
+  //     { referencePoints: [from, to] },
+  //     { boundsAutoApply: false }
+  //   );
+  //   this.map.geoObjects.add(this.mapRoute);
+
+  //   this.mapRoute.model.events.add('requestsuccess', () => {
+  //     try {
+  //       const activeRoute = this.mapRoute.getActiveRoute();
+  //       if (!activeRoute) {
+  //         return this.failedCalculation();
+  //       }
+
+  //       const km = activeRoute.properties.get('distance').value / 1000;
+  //       const sizeValue = size ?? '';
+  //       const sizeConfig = this.sizes.find((item) => item.value === sizeValue);
+  //       if (!sizeConfig) {
+  //         return this.failedCalculation();
+  //       }
+  //       let total = Math.max(sizeConfig.min, Math.ceil(km * sizeConfig.rate));
+  //       let duration = Math.min(30, 1 + Math.ceil(km / 80));
+
+  //       if (speed === 'fast') {
+  //         total = Math.ceil(total * 1.15);
+  //         duration = Math.ceil(duration - (duration * 0.30));
+  //       }
+
+  //       this.calculationResult.set({
+  //         from,
+  //         to,
+  //         size,
+  //         distance: km.toFixed(1),
+  //         duration,
+  //         rate: sizeConfig.rate,
+  //         total,
+  //         speed
+  //       });
+  //     } catch (err) {
+  //       this.failedCalculation();
+  //     }
+  //   });
+
+  //   this.mapRoute.model.events.add('requestfail', () => this.failedCalculation());
+  // }
+
+  
 
   private failedCalculation() {
     this.calculationResult.set(null);

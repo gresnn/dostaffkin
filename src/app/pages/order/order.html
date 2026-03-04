@@ -143,6 +143,10 @@
 
             </div>
         </div>
+        <!-- Лоадер -->
+        <div class="loader" [class.loader--active]="isLoading()">
+            <div class="loader__circle"></div>
+        </div>
         <div class="main-calculate-block" [style.display]="orderId() ? 'none' : null">
             <button id="calc" class="button calculate-button" type="button" [disabled]="routeForm.invalid"
                 (click)="calculate()">Рассчитать</button>
